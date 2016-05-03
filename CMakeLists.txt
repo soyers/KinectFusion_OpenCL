@@ -38,7 +38,7 @@ SET(EIGEN_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/libs/)
 INCLUDE_DIRECTORIES(${EIGEN_INCLUDE_DIR})
 
 #Boost
-find_package(Boost REQUIRED)
+find_package(Boost COMPONENTS program_options REQUIRED)
 include_directories(${Boost_INCLUDE_DIR})
 
 #OpenCV (Set custom opencv dir with -DOpenCV_DIR=/path/where/OpenCVConfig.cmake/lies)

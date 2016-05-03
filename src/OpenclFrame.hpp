@@ -38,7 +38,4 @@ class OpenclFrame
         void initOpenclFrame();
         
 };
-
-// Launch a kernel with
-// CHECK_OPENCL_CALL(clEnqueueNDRangeKernel (queue, kernel, dimensions, offset, globalSize, localSize, 0, nullptr, nullptr));
 #endif
