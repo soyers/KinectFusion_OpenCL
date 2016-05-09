@@ -32,9 +32,8 @@ class OpenclFrame
             {"src/cl/normalMap.cl", {"normalMap_kernel"}},
             {"src/cl/tsdfIntegration.cl", {"tsdfIntegration_kernel"}},
             {"src/cl/raycastVolume.cl", {"raycastVolume_kernel"}},
-            {"src/cl/mipMapDepth.cl", {"mipmapDepth_kernel"}},
-            {"src/cl/transformVertNorm.cl", {"transformVertNorm_kernel"}},
-            {"src/cl/icp.cl", {"findCorrespondences_kernel"}}
+            {"src/cl/mipmap.cl", {"mipmap_kernel"}},
+            {"src/cl/transformVertNorm.cl", {"transformVertNorm_kernel"}}
         };        
         std::vector<cl_program> programs;
         cl_int error;
