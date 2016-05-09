@@ -12,18 +12,20 @@ paramProvider::paramProvider(const int argc, const char * const argv[]) : desc("
             "Input directory")
         ("filename,f", po::value<std::string>(&m_assocFilename)->default_value(std::string(PROJECT_DIR) + "rgbd_assoc_poses.txt"),
             "Name of association file inside input directory")
-        ("volume-res,r", po::value<cl_uint>(&m_volumeRes)->default_value(256),
+        ("volume-res", po::value<cl_uint>(&m_volumeRes)->default_value(256),
             "Resolution of the voxel grid")
-        ("volume-size,s", po::value<cl_float>(&m_volumeSize)->default_value(3.0f),
+        ("volume-size", po::value<cl_float>(&m_volumeSize)->default_value(3.0f),
             "Size of the voxel grid in meters")
-        ("depth-truncation,t", po::value<cl_float>(&m_depthTruncation)->default_value(3.0f),
+        ("depth-truncation", po::value<cl_float>(&m_depthTruncation)->default_value(3.0f),
             "Maximum considered distance in meters")
-        ("normal-deriv-trunc,n", po::value<cl_float>(&m_normalDerivTrunc)->default_value(0.3f),
+        ("normal-deriv-trunc", po::value<cl_float>(&m_normalDerivTrunc)->default_value(0.3f),
             "Derivative truncation value during normal map calculation in meters")
-        ("tsdf-max-trunc,l", po::value<cl_float>(&m_tsdfMaxTrunc)->default_value(0.03f),
+        ("tsdf-max-trunc", po::value<cl_float>(&m_tsdfMaxTrunc)->default_value(0.03f),
             "Upper truncation value for tsdf in meters")
-        ("tsdf-min-trunc,u", po::value<cl_float>(&m_tsdfMinTrunc)->default_value(0.03f),
-            "Lower truncation value for tsdf in meters");
+        ("tsdf-min-trunc", po::value<cl_float>(&m_tsdfMinTrunc)->default_value(0.03f),
+            "Lower truncation value for tsdf in meters")
+        ("use-icp", po::value<bool>(&m_useICP)->default_value(true),
+            "Enable icp");
     
     po::variables_map vm;
     try
@@ -66,6 +68,7 @@ paramProvider::paramProvider(const int argc, const char * const argv[]) : desc("
     std::cout << "    m_normalDerivTrunc: " << m_normalDerivTrunc << std::endl;
     std::cout << "    m_tsdfMaxTrunc: " << m_tsdfMaxTrunc << std::endl;
     std::cout << "    m_tsdfMinTrunc: " << m_tsdfMinTrunc << std::endl;
+    std::cout << "    m_useICP: " << m_useICP << std::endl;
 }
 
 std::string paramProvider::assocFilename()
@@ -106,5 +109,10 @@ cl_float paramProvider::tsdfMaxTrunc()
 cl_float paramProvider::tsdfMinTrunc()
 {
     return m_tsdfMinTrunc;
+}
+
+bool paramProvider::isUseICP()
+{
+    return m_useICP;
 }
 

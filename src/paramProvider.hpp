@@ -36,6 +36,7 @@ class paramProvider
         cl_float normalDerivTrunc();
         cl_float tsdfMaxTrunc();
         cl_float tsdfMinTrunc();
+        bool isUseICP();
     private: 
         po::options_description desc;
         std::string m_inputPath;
@@ -46,6 +47,7 @@ class paramProvider
         cl_float m_normalDerivTrunc;
         cl_float m_tsdfMaxTrunc;
         cl_float m_tsdfMinTrunc;
+        bool m_useICP;
 };
 
 #endif

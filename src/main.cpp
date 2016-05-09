@@ -11,6 +11,7 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/video/video.hpp>
+#include <opencv2/rgbd.hpp>
 #ifdef __APPLE__
     #include "OpenCL/opencl.h"
 #else
@@ -26,6 +27,8 @@
 #include "raycaster.hpp"
 #include "rgbdBenchTUM.hpp"
 #include "paramProvider.hpp"
+#include "icp.hpp"
+#include "timer.hpp"
 
 #include <string>
 #include <sstream>
@@ -86,21 +89,35 @@ int main(int argc, char * argv[])
                 0.0, 0.0, 1.0;
         kInv = Eigen::Matrix3f(k.inverse());
 
-        //Define variables for input depth, input color and input camera position
-        Eigen::Matrix4f pose;
-
         //Set up provider object for benchmark data
         rgbdBenchTUM benchProvider(paramProv.inputPath(), "rgbd_assoc_poses.txt");
+
+        //Init OpenCL context
+        OpenclFrame clFrame;
+        
+        //Initialize timers
+        timer frameTime(clFrame);
+        timer tsdfIntegrationTime(clFrame);
+        timer raycastTime(clFrame);
+        timer icpTime(clFrame);
         
         //load first frame to determine width and height of our images and initial pose
         benchProvider.fetchData(0);
         cl_uint w = benchProvider.currentDepth().cols;
         cl_uint h = benchProvider.currentDepth().rows;
-        Eigen::Matrix4f initialPose = benchProvider.currentPos();
-        Eigen::Matrix4f initialPoseInv = initialPose.inverse();
+        Eigen::Matrix4f pose = Eigen::Matrix4f::Identity();
+        Eigen::Matrix4f initialPose = Eigen::Matrix4f::Identity();
+        Eigen::Matrix4f initialPoseInv = Eigen::Matrix4f::Identity();
 
-        //Init OpenCL context
-        OpenclFrame clFrame;
+         //Init ICP
+        icp icpInstance(paramProv.depthTruncation(), k);
+
+        if (paramProv.isUseICP())
+        {
+            //Use groundtruth pose
+            initialPose = benchProvider.currentPos();
+            initialPoseInv = initialPose.inverse();
+        }
 
         //Init raycaster
         raycaster rc(clFrame, w, h, k);
@@ -120,23 +137,30 @@ int main(int argc, char * argv[])
         centroid << 0.f, 0.f, 0.f;
         Eigen::Matrix4f centroidTrans = Eigen::Matrix4f(Eigen::Matrix4f::Identity());
 
+        //Define variables for icp
+        cv::Mat raycastDepth(h, w, CV_32FC1);
+        cv::Mat raycastColor(h, w, CV_32FC3);
+        cv::Mat nextDepth(h, w, CV_32FC1);
+        cv::Mat nextColor(h, w, CV_32FC3);  
+
         //Define maximum number of frames
-        cl_uint maxNumFrames = 50;
+        cl_uint maxNumFrames = benchProvider.size();
 
         for (cl_uint frameNumber = 0; frameNumber < benchProvider.size() && frameNumber < maxNumFrames; ++frameNumber)
         {
-            //Fetch groundtruth pose
-            benchProvider.fetchData(frameNumber);
-            Eigen::Matrix4f pose = initialPoseInv * benchProvider.currentPos();
+            //Start timer for entire frame
+            frameTime.start();
             
-
+            //Fetch current frame
+            benchProvider.fetchData(frameNumber);
+            
             //Copy depth and color to buffer
             layer(depth.hostBuffer(), benchProvider.currentDepth());
             depth.upload();
             layer(colorImage.hostBuffer(), benchProvider.currentColor());
             colorImage.upload();
 
-            //Run vertexmap Kernel
+            //Run vertexmap Kernel (Sets invalid depth to nan which is needed by ICP algorithm in O)penCV
             calculateVertexMap(clFrame, vertexMap.deviceBuffer(), depth.deviceBuffer(), convertEigen(kInv), paramProv.depthTruncation(), (cl_uint)w, (cl_uint)h);
 
             //Calculate centroid of first frame fo center volume around desired object
@@ -146,20 +170,50 @@ int main(int argc, char * argv[])
                 centroidTrans.topRightCorner<3, 1>() = -cent;
             }
 
+            //Find new pose
+            if (paramProv.isUseICP())
+            {
+                //Start ICP timer
+                icpTime.start();
+                //Depth with nan for invalid values
+                depth.download();
+                interleave(nextDepth, depth.hostBuffer());
+
+                cvtColor(benchProvider.currentColor(), nextColor, cv::COLOR_BGR2GRAY);
+                //Approximate new pose using ICP
+                if (frameNumber > 0)
+                {                    
+                    icpInstance.calculateTransform(raycastColor, raycastDepth, nextColor, nextDepth);
+                }
+
+                pose = icpInstance.getCurrPos();
+                //Stop ICP timer
+                icpTime.end();
+            }
+            else
+            {
+                pose = initialPoseInv * benchProvider.currentPos();
+            }
+
             //calculate current pose
             Eigen::Matrix4f trans = centroidTrans * pose;
-
-            
-
 
             //Run normalmap Kernel
             calculateNormalMap(clFrame, normalMap.deviceBuffer(), vertexMap.deviceBuffer(), paramProv.normalDerivTrunc(), w, h);
 
+            //Start tsdf integration timer
+            tsdfIntegrationTime.start();
             //Integrate frame into tsdf volume
             tsdfInstance.integrate(depth.deviceBuffer(), colorImage.deviceBuffer(), k, Eigen::Matrix4f(trans.inverse()), paramProv.tsdfMaxTrunc(), paramProv.tsdfMinTrunc(), 1 << 7, w, h, paramProv.volumeRes(), paramProv.volumeSize());
+            //Stop tsdf integration timer
+            tsdfIntegrationTime.end();
 
+            //Start raycast timer
+            raycastTime.start();
             //Raycast volume
             rc.raycastVolume(tsdfInstance, trans);
+            //Stop raycast timer
+            raycastTime.end();
 
             //Output
             normalMap.download();
@@ -179,15 +233,26 @@ int main(int argc, char * argv[])
 
             rc.depthMapBuffer().download();
             rc.depthMapBuffer().hostBuffer();
-            cv::Mat raycastDepth(h, w, CV_32FC1);
-            interleave(raycastDepth, rc.depthMapBuffer().hostBuffer());
-
             displayImage(raycastDepth, "Raycast Depth", 100+w, 50+h);
 
             displayImage(benchProvider.currentDepth(), "Depth", 100+w*2, 50+h);
             cv::waitKey(FRAME_TIME);
 
+            //Set raycast depth and color for next frame
+            
+            interleave(raycastDepth, rc.depthMapBuffer().hostBuffer());
+            interleave(raycastColor, rc.colorMapBuffer().hostBuffer());
             std::cout << "Frame: " << frameNumber << " integrated" << std::endl;
+
+            //Stop timer for entire frame
+            frameTime.end();
+
+            //Print timings
+            std::cout << "Frame time: " <<  frameTime.measurement() * 1000.f << "ms" << std::endl;
+            std::cout << "TSDF integration time: " <<  tsdfIntegrationTime.measurement() * 1000.f << "ms" << std::endl;
+            if (paramProv.isUseICP())
+                std::cout << "ICP time: " <<  icpTime.measurement() * 1000.f << "ms" << std::endl;
+            std::cout << "Raycast time: " <<  raycastTime.measurement() * 1000.f << "ms" << std::endl;    
         }
         tsdfInstance.valuesBuffer().download();
         tsdfInstance.colorsBuffer().download();
