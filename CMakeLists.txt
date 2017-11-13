@@ -42,6 +42,7 @@ find_package(Boost COMPONENTS program_options REQUIRED)
 include_directories(${Boost_INCLUDE_DIR})
 
 #OpenCV (Set custom opencv dir with -DOpenCV_DIR=/path/where/OpenCVConfig.cmake/lies)
+SET(OpenCV_DIR ${PROJECT_SOURCE_DIR}/libs/opencv/share/OpenCV)
 FIND_PACKAGE(OpenCV 3.1.0 COMPONENTS opencv_core opencv_highgui opencv_imgproc opencv_rgbd REQUIRED)
 
 #OpenCL
