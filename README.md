@@ -18,6 +18,10 @@ The project is able to read the assoociated rgb and depth files from all sequenc
 Furthermore it provides download scripts [downloadFreiburg.py](data/downloadFreiburg.py) for the [fr1/xyz](http://vision.in.tum.de/rgbd/dataset/freiburg1/rgbd_dataset_freiburg1_xyz.tgz) dataset that also performs frame association.
 The dataset is downloaded to the [data](data/) folder.
 
+## Build and run
+The project is simply built with the command `cmake .` in the project directory followed by `make`. Note that building in a separate build folder requres copying the [OpenCL kernels](src/cl) manually to `<build-folder>/src/cl`.
+Executing the project with `./KinectFusion_OpenCL` will run the reconstruction on the downloaded dataset.
+
 # References
 - [KinectFusion Paper](https://www.google.de/url?sa=t&rct=j&q=&esrc=s&source=web&cd=1&cad=rja&uact=8&ved=0ahUKEwic1fPeorzXAhXQCuwKHZJ-D-AQFggnMAA&url=https%3A%2F%2Fwww.microsoft.com%2Fen-us%2Fresearch%2Fwp-content%2Fuploads%2F2016%2F02%2Fismar2011.pdf&usg=AOvVaw3uHY0TJIr3p57KW4p52rtC)
 - [OpenCV](http://opencv.org)
